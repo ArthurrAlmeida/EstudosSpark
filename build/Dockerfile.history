@@ -1,0 +1,21 @@
+FROM spark:3.5.0
+
+USER root
+
+# Configuração do Spark
+ENV SPARK_HOME=/opt/spark
+
+# Diretório dos Event Logs
+RUN mkdir -p ${SPARK_HOME}/logs/events
+
+# Configuração específica do History Server
+COPY config/history/conf/spark-defaults.conf ${SPARK_HOME}/conf/
+
+# Script de inicialização
+COPY config/history/scripts/entrypoint.sh /entrypoint.sh
+
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 18080
+
+ENTRYPOINT ["/entrypoint.sh"]

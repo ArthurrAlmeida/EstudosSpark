@@ -1,0 +1,28 @@
+FROM spark:3.5.0
+
+USER root
+
+# Instala Python, pip e ferramentas necessárias
+RUN apt-get update && \
+    apt-get install -y python3-pip curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV SPARK_HOME=/opt/spark
+
+# Diretório utilizado pelo Spark History Server
+RUN mkdir -p ${SPARK_HOME}/logs/events
+
+# Configurações do Spark
+COPY config/spark/spark-defaults.conf ${SPARK_HOME}/conf/
+COPY config/spark/jars ${SPARK_HOME}/jars
+COPY config/spark/log4j2.properties ${SPARK_HOME}/conf/
+
+# Dependências Python
+COPY requirements.txt ${SPARK_HOME}/conf/requirements.txt
+
+# Instala dependências Python e Jupyter
+RUN pip3 install --no-cache-dir -r ${SPARK_HOME}/conf/requirements.txt && \
+    pip3 install --no-cache-dir ipykernel notebook jupyterlab
+
+EXPOSE 8080 7077 18080 8888

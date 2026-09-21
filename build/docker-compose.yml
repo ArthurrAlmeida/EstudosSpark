@@ -1,0 +1,285 @@
+services:
+
+  # ==========================================================
+  # MINIO
+  # ==========================================================
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: ecommerce-minio
+    hostname: minio
+
+    command: server /data --console-address ":9001"
+
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123
+
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+    volumes:
+      - minio_data:/data
+
+    networks:
+      - spark-net
+
+
+  # ==========================================================
+  # POSTGRESQL
+  # ==========================================================
+
+  postgres:
+    image: postgres:16
+    container_name: ecommerce-postgres
+    hostname: postgres
+
+    environment:
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+    networks:
+      - spark-net
+
+
+  # ==========================================================
+  # SPARK MASTER
+  # ==========================================================
+
+  spark-master:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+
+    container_name: spark-master
+    hostname: spark-master
+
+    command: >
+      bash -c "
+      /opt/spark/sbin/start-master.sh
+      --host spark-master
+      --port 7077
+      --webui-port 8080 &&
+      tail -f /dev/null
+      "
+
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+
+    volumes:
+      - ${APP_JOBS_PATH}:/opt/spark/jobs
+      - ${APP_RESOURCES_PATH}:/opt/spark/resources
+      - ${APP_STORAGE_PATH}:/opt/spark/storage
+      - ${APP_LOG_PATH}:/opt/spark/logs/events
+      - ${APP_METRICS_PATH}:/opt/spark/metrics
+
+    networks:
+      - spark-net
+
+
+  # ==========================================================
+  # SPARK WORKER 1
+  # ==========================================================
+
+  spark-worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+
+    container_name: spark-worker-1
+    hostname: spark-worker-1
+
+    command: >
+      bash -c "
+      /opt/spark/sbin/start-worker.sh
+      spark://spark-master:7077 &&
+      tail -f /dev/null
+      "
+
+    environment:
+      SPARK_WORKER_CORES: 1
+      SPARK_WORKER_MEMORY: 1g
+
+    ports:
+      - "8081:8081"
+
+    volumes:
+      - ${APP_JOBS_PATH}:/opt/spark/jobs
+      - ${APP_RESOURCES_PATH}:/opt/spark/resources
+      - ${APP_STORAGE_PATH}:/opt/spark/storage
+      - ${APP_LOG_PATH}:/opt/spark/logs/events
+      - ${APP_METRICS_PATH}:/opt/spark/metrics
+
+    depends_on:
+      - spark-master
+
+    networks:
+      - spark-net
+
+
+  # ==========================================================
+  # SPARK WORKER 2
+  # ==========================================================
+
+  spark-worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+
+    container_name: spark-worker-2
+    hostname: spark-worker-2
+
+    command: >
+      bash -c "
+      /opt/spark/sbin/start-worker.sh
+      spark://spark-master:7077 &&
+      tail -f /dev/null
+      "
+
+    environment:
+      SPARK_WORKER_CORES: 1
+      SPARK_WORKER_MEMORY: 1g
+
+    ports:
+      - "8082:8081"
+
+    volumes:
+      - ${APP_JOBS_PATH}:/opt/spark/jobs
+      - ${APP_RESOURCES_PATH}:/opt/spark/resources
+      - ${APP_STORAGE_PATH}:/opt/spark/storage
+      - ${APP_LOG_PATH}:/opt/spark/logs/events
+      - ${APP_METRICS_PATH}:/opt/spark/metrics
+
+    depends_on:
+      - spark-master
+
+    networks:
+      - spark-net
+
+
+  # ==========================================================
+  # SPARK WORKER 3
+  # ==========================================================
+
+  spark-worker-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+
+    container_name: spark-worker-3
+    hostname: spark-worker-3
+
+    command: >
+      bash -c "
+      /opt/spark/sbin/start-worker.sh
+      spark://spark-master:7077 &&
+      tail -f /dev/null
+      "
+
+    environment:
+      SPARK_WORKER_CORES: 1
+      SPARK_WORKER_MEMORY: 1g
+
+    ports:
+      - "8083:8081"
+
+    volumes:
+      - ${APP_JOBS_PATH}:/opt/spark/jobs
+      - ${APP_RESOURCES_PATH}:/opt/spark/resources
+      - ${APP_STORAGE_PATH}:/opt/spark/storage
+      - ${APP_LOG_PATH}:/opt/spark/logs/events
+      - ${APP_METRICS_PATH}:/opt/spark/metrics
+
+    depends_on:
+      - spark-master
+
+    networks:
+      - spark-net
+
+
+  # ==========================================================
+  # SPARK HISTORY SERVER
+  # ==========================================================
+
+  spark-history-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.history
+
+    container_name: spark-history-server
+    hostname: spark-history-server
+
+    ports:
+      - "18080:18080"
+
+    volumes:
+      - ${APP_LOG_PATH}:/opt/spark/logs/events
+
+    depends_on:
+      - spark-master
+      - spark-worker-1
+      - spark-worker-2
+      - spark-worker-3
+
+    networks:
+      - spark-net
+
+# ==========================================================
+# JUPYTER
+# ==========================================================
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    container_name: ecommerce-jupyter
+    hostname: jupyter
+    command: >
+      jupyter lab
+      --ip=0.0.0.0
+      --port=8888
+      --no-browser
+      --allow-root
+      --ServerApp.token=
+    ports:
+      - "8888:8888"
+    volumes:
+      - ${APP_JOBS_PATH}:/opt/spark/jobs
+      - ${APP_RESOURCES_PATH}:/opt/spark/resources
+      - ${APP_STORAGE_PATH}:/opt/spark/storage
+      - ${APP_LOG_PATH}:/opt/spark/logs/events
+      - ${APP_METRICS_PATH}:/opt/spark/metrics
+    depends_on:
+      - spark-master
+      - spark-worker-1
+      - spark-worker-2
+      - spark-worker-3
+      - minio
+    networks:
+      - spark-net
+
+# ============================================================
+# NETWORK
+# ============================================================
+
+networks:
+  spark-net:
+    driver: bridge
+
+
+# ============================================================
+# VOLUMES
+# ============================================================
+
+volumes:
+  minio_data:
+  pgdata:
